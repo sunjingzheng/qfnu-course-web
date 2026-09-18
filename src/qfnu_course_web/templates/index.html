@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="qfnu-token" content="{{ token }}">
+  <title>QFNU 选课控制台</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="lunar-console">
+  <div id="cosmic-backdrop" aria-hidden="true">
+    <span class="star-field"></span>
+    <span class="moon-arc"></span>
+    <span class="orbital-lines"></span>
+    <span class="scan-lines"></span>
+  </div>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">LUNAR SIGNAL / COURSE CONTROL</p>
+      <h1>QFNU 选课控制台</h1>
+      <p class="terminal-tag">月面电波终端 <span>CHANNEL 05</span></p>
+    </div>
+    <div class="header-actions">
+      <button id="login-open" class="button secondary" type="button">登录</button>
+      <button id="logout" class="button quiet" type="button">退出</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="status-strip" aria-label="系统状态" aria-live="polite">
+      <div><span>会话</span><strong id="session-status">未登录</strong></div>
+      <div><span>轮次</span><strong id="round-status">未选择</strong></div>
+      <div><span>自动化</span><strong id="automation-status">空闲</strong></div>
+      <div><span>速率</span><strong id="rate-status">5 次/秒</strong></div>
+    </section>
+
+    <nav class="command-bar" aria-label="任务操作">
+      <button id="start" class="button primary" type="button">启动自动工作流</button>
+      <button id="stop" class="button danger" type="button">停止</button>
+      <button id="settings-open" class="button quiet" type="button">自动化设置</button>
+      <button id="advanced-target-open" class="button quiet" type="button">按课程编号抢课</button>
+    </nav>
+
+    <section class="workspace" aria-label="选课工作区">
+      <div class="main-column">
+        <section class="data-section catalog-section">
+          <div class="section-heading">
+            <div><p class="section-label">COURSE CATALOG</p><h2>全部可选课程</h2></div>
+            <span id="catalog-count" class="count">0 条</span>
+          </div>
+          <div class="catalog-toolbar">
+            <div>
+              <label for="catalog-round">选课轮次</label>
+              <select id="catalog-round" disabled><option value="">登录后获取轮次</option></select>
+            </div>
+            <div>
+              <label for="catalog-module">选课模块</label>
+              <select id="catalog-module">
+                <option value="">全部模块</option>
+                <option value="bxxk">必修选课</option>
+                <option value="xxxk">选修选课</option>
+                <option value="bxqjhxk">本学期计划</option>
+                <option value="knjxk">专业内跨年级</option>
+                <option value="fawxk">计划外</option>
+                <option value="ggxxkxk">公选课</option>
+              </select>
+            </div>
+            <div class="catalog-filter-field">
+              <label for="catalog-filter">筛选课程</label>
+              <input id="catalog-filter" type="search" placeholder="课程名、课程号或教师">
+            </div>
+            <button id="catalog-load" class="button primary catalog-load" type="button" disabled>加载全部可选课</button>
+          </div>
+          <div class="catalog-meta">
+            <div id="catalog-statuses" class="module-statuses" aria-live="polite"></div>
+            <span id="catalog-loaded-at" class="count">尚未加载</span>
+          </div>
+          <div class="table-wrap catalog-table-wrap">
+            <table id="catalog-table">
+              <caption>当前选课轮次中可供用户添加监控的课程</caption>
+              <thead><tr><th>模块</th><th>课程</th><th>教师</th><th>学分</th><th>开课单位 / 类别</th><th>校区</th><th>时间 / 地点</th><th>人数</th><th>教学班 / 分组 / 冲突</th><th>操作</th></tr></thead>
+              <tbody id="catalog-body"><tr><td colspan="10" class="empty">登录后加载全部可选课程</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="data-section">
+          <div class="section-heading">
+            <div><p class="section-label">TARGETS</p><h2>目标课程</h2></div>
+            <span id="target-count" class="count">0 项</span>
+          </div>
+          <div class="table-wrap">
+            <table id="targets-table">
+              <caption>已配置的目标课程与运行状态</caption>
+              <thead><tr><th>优先级</th><th>模式 / 模块</th><th>课程</th><th>教师 / 分组 / 互斥组</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="targets-body"><tr><td colspan="6" class="empty">尚未添加目标课程</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+
+      <aside class="event-panel" aria-label="运行事件">
+        <div class="section-heading">
+          <div><p class="section-label">EVENT STREAM</p><h2>运行事件</h2></div>
+          <button id="clear-events" class="icon-button" type="button" title="清空页面上的事件" aria-label="清空页面上的事件">×</button>
+        </div>
+        <ol id="events" class="event-list" aria-live="polite"><li class="empty">等待操作</li></ol>
+      </aside>
+    </section>
+  </main>
+
+  <dialog id="login-dialog" aria-labelledby="login-title">
+    <form id="login-form" method="dialog">
+      <div class="dialog-heading"><h2 id="login-title">登录教务系统</h2><button class="icon-button close-dialog" type="button" aria-label="关闭登录窗口" title="关闭">×</button></div>
+      <label for="username">账号</label><input id="username" name="username" autocomplete="username" required>
+      <label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+      <div class="captcha-row"><img id="captcha-image" alt="教务系统验证码"><button id="captcha-refresh" class="button quiet" type="button">刷新验证码</button></div>
+      <label for="captcha">验证码</label><input id="captcha" name="captcha" autocomplete="off" required>
+      <p id="login-error" class="form-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button secondary close-dialog" type="button">取消</button><button class="button primary" type="submit">登录</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="target-dialog" aria-labelledby="target-title">
+    <form id="target-form" method="dialog">
+      <div class="dialog-heading"><h2 id="target-title">编辑目标课程</h2><button class="icon-button close-dialog" type="button" aria-label="关闭目标课程窗口" title="关闭">×</button></div>
+      <input id="target-id" name="id" type="hidden">
+      <input id="target-mode" name="mode" type="hidden" value="advanced">
+      <div class="form-grid">
+        <div><label for="target-module">选课模块</label><select id="target-module" name="module" required><option value="bxxk">必修选课</option><option value="xxxk">选修选课</option><option value="bxqjhxk">本学期计划</option><option value="knjxk">专业内跨年级</option><option value="fawxk">计划外</option><option value="ggxxkxk">公选课</option></select></div>
+        <div><label for="target-priority">优先级</label><input id="target-priority" name="priority" type="number" min="1" max="9999" value="100" required></div>
+        <div class="span-two"><label for="target-course-code">课程编号</label><input id="target-course-code" name="course_code" placeholder="例如 G200511771" required></div>
+      </div>
+      <p id="target-error" class="form-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button secondary close-dialog" type="button">取消</button><button class="button primary" type="submit">保存目标</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form" method="dialog">
+      <div class="dialog-heading"><h2 id="settings-title">自动化设置</h2><button class="icon-button close-dialog" type="button" aria-label="关闭自动化设置窗口" title="关闭">×</button></div>
+      <div class="form-section"><h3>账号与登录</h3><div class="form-grid">
+        <div><label for="automation-username">学号</label><input id="automation-username" name="username" autocomplete="username" required></div>
+        <div><label for="keychain-password">钥匙串密码</label><input id="keychain-password" type="password" autocomplete="new-password"></div>
+        <div class="span-two password-actions"><span id="password-status" class="count">未保存密码</span><button id="password-save" class="button secondary" type="button">保存密码</button><button id="password-delete" class="button danger" type="button">删除密码</button></div>
+        <div class="span-two"><span class="field-label">验证码识别</span><p class="field-help">内置 OCR 会随控制台启动并自动识别登录验证码；连续识别失败时改为手动输入。</p></div>
+        <div><label for="ocr-attempts">OCR 尝试次数</label><input id="ocr-attempts" name="ocr_attempts" type="number" min="1" max="10" value="3" required></div>
+        <div><label for="keepalive-seconds">会话检查间隔（秒）</label><input id="keepalive-seconds" name="keepalive_seconds" type="number" min="30" max="3600" value="300" required></div>
+      </div></div>
+      <p id="settings-error" class="form-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button secondary close-dialog" type="button">取消</button><button class="button primary" type="submit">保存设置</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="automation-captcha-dialog" aria-labelledby="automation-captcha-title">
+    <form id="automation-captcha-form" method="dialog">
+      <div class="dialog-heading"><h2 id="automation-captcha-title">输入验证码</h2><button class="icon-button close-dialog" type="button" aria-label="关闭验证码窗口" title="关闭">×</button></div>
+      <div class="captcha-row"><img id="automation-captcha-image" alt="教务系统验证码"></div>
+      <label for="automation-captcha">验证码</label><input id="automation-captcha" name="captcha" autocomplete="off" required>
+      <p id="automation-captcha-error" class="form-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button secondary close-dialog" type="button">取消</button><button class="button primary" type="submit">继续登录</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

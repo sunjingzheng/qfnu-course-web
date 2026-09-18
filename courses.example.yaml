@@ -1,0 +1,18 @@
+runtime:
+  requests_per_second: 2.0
+  poll_interval_seconds: 3.0
+  max_runtime_minutes: 60
+  round_id: null
+  term_id: null
+  ocr_url: null
+targets:
+  - module: ggxxkxk
+    course_code: "006BB0660"
+    course_name: 中国古代墓葬
+    teacher: 徐老师
+    priority: 10
+  - module: knjxk
+    course_code: "301043"
+    course_name: 电子测量
+    lab_group: 分组02
+    priority: 20

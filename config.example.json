@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "account": {
+    "username": ""
+  },
+  "auth": {
+    "ocr_url": null,
+    "ocr_attempts": 3,
+    "keepalive_seconds": 300
+  },
+  "selection": {
+    "round_keywords": [],
+    "start_time": null,
+    "requests_per_second": 5.0,
+    "poll_interval_seconds": 0.1,
+    "max_runtime_minutes": null,
+    "term_id": null
+  },
+  "targets": [
+    {
+      "enabled": true,
+      "mode": "search",
+      "module": "xxxk",
+      "course_name": "示例课程",
+      "exclusive_group": "任选一门",
+      "priority": 10
+    },
+    {
+      "enabled": true,
+      "mode": "advanced",
+      "module": "knjxk",
+      "course_code": "G200511771",
+      "priority": 20
+    }
+  ]
+}
