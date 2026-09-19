@@ -117,7 +117,6 @@ class CourseScheduler:
                 round_id = getattr(rounds[0], "id", rounds[0])
             await self.catalog.enter_round(round_id)  # type: ignore[attr-defined]
             self.state.snapshot.round_id = round_id
-            active_module: str | None = None
             skip_round_check_once = recovered_initial_round
             while pending and not self._stop:
                 await self._pause.wait()
@@ -138,7 +137,6 @@ class CourseScheduler:
                                 previous_name = self.state.snapshot.round_name or round_id
                                 await self.catalog.enter_round(current.id)  # type: ignore[attr-defined]
                                 round_id = current.id
-                                active_module = None
                                 self.state.snapshot.round_id = current.id
                                 self.state.snapshot.round_name = current.name
                                 await self.state.publish_snapshot()
@@ -147,9 +145,7 @@ class CourseScheduler:
                                     "round",
                                     f"轮次已变化：{previous_name} -> {current.name}",
                                 )
-                        if target.module != active_module:
-                            await self.catalog.enter_module(target.module)  # type: ignore[attr-defined]
-                            active_module = target.module
+                        await self.catalog.enter_module(target.module)  # type: ignore[attr-defined]
                         await self.state.set_status(target.id, TaskPhase.SEARCHING, "正在搜索")
                         candidates = await self.catalog.search(target)  # type: ignore[attr-defined]
                         await self.state.set_candidates(candidates)
@@ -159,22 +155,14 @@ class CourseScheduler:
                                 await self.state.set_status(
                                     target.id,
                                     TaskPhase.WAITING,
-                                    "未找到无冲突、未选且有余量的教学班",
+                                    self._advanced_unavailable_message(target, candidates),
                                 )
                                 continue
-                            completed = False
                             for match in matches:
                                 if await self._submit_match(
                                     target, match, config, pending, targets
                                 ):
-                                    completed = True
                                     break
-                            if not completed:
-                                await self.state.set_status(
-                                    target.id,
-                                    TaskPhase.WAITING,
-                                    "本轮教学班均未选中，继续重试",
-                                )
                             failures = 0
                             reauth_attempts = 0
                             continue
@@ -191,7 +179,6 @@ class CourseScheduler:
                         reauth_attempts = 0
                     except RoundSelectionError:
                         round_id = None
-                        active_module = None
                         self.state.snapshot.round_id = None
                         self.state.snapshot.round_name = None
                         for pending_target in targets:
@@ -219,7 +206,6 @@ class CourseScheduler:
                         )
                         skip_round_check_once = True
                     except ModuleUnavailableError as exc:
-                        active_module = None
                         await self.state.set_status(
                             target.id,
                             TaskPhase.WAITING,
@@ -252,7 +238,6 @@ class CourseScheduler:
                                 )
                         if recovered:
                             await self.catalog.enter_round(round_id)  # type: ignore[attr-defined]
-                            active_module = None
                             await self.state.add_event("success", "session", "会话已恢复，继续抢课")
                             continue
                         self._stop = True
@@ -299,7 +284,8 @@ class CourseScheduler:
         await self.state.set_status(target.id, TaskPhase.SUBMITTING, "正在提交选课")
         result = await self.enrollment.enroll(match)  # type: ignore[attr-defined]
         if not result.complete:
-            await self.state.set_status(target.id, TaskPhase.WAITING, result.message)
+            message = result.message.strip() or "本轮教学班均未选中，继续重试"
+            await self.state.set_status(target.id, TaskPhase.WAITING, message)
             return False
         await self.state.set_status(target.id, TaskPhase.VERIFYING, "正在确认选课结果")
         verified = False
@@ -337,6 +323,25 @@ class CourseScheduler:
             target.id, TaskPhase.WAITING, "提交成功，但结果列表尚未确认，继续重试"
         )
         return False
+
+    @staticmethod
+    def _advanced_unavailable_message(
+        target: CourseTarget, candidates: list[CourseCandidate]
+    ) -> str:
+        relevant = [
+            item
+            for item in candidates
+            if not target.course_code
+            or item.course_code.casefold() == target.course_code.casefold()
+        ]
+        conflicts = list(dict.fromkeys(item.conflict for item in relevant if item.conflict))
+        if conflicts:
+            return "；".join(conflicts)
+        if any(item.selected for item in relevant):
+            return "课程已经选过"
+        if any(item.remaining == 0 for item in relevant):
+            return "课程人数已满"
+        return "未找到无冲突、未选且有余量的教学班"
 
     @staticmethod
     def _advanced_matches(

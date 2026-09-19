@@ -50,6 +50,25 @@ async def test_ordinary_and_split_enrollment_parameters() -> None:
 
 
 @pytest.mark.asyncio
+async def test_enrollment_returns_an_empty_reason_when_the_server_omits_message() -> None:
+    client = TeachingClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"success": False})),
+        limiter=NoWaitLimiter(),
+    )
+    service = EnrollmentService(client)
+    ordinary = CourseCandidate(
+        module="xxxk", course_id="course", class_id="class", course_code="302752"
+    )
+
+    result = await service.enroll(
+        CourseMatch(kind=MatchKind.ORDINARY, target_id="t", message="", candidate=ordinary)
+    )
+
+    assert result.message == ""
+    await client.close()
+
+
+@pytest.mark.asyncio
 async def test_result_table_verifies_course() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("xsxkjgcx"):

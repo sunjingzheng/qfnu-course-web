@@ -58,7 +58,7 @@ class EnrollmentService:
             payload = response.json()
         except ValueError as exc:
             raise TeachingClientError("选课响应不是有效 JSON") from exc
-        message = str(payload.get("message", "未知响应"))
+        message = str(payload.get("message") or "").strip()
         return EnrollmentResult(complete=message == "选课成功", message=message)
 
     async def verify(self, target: CourseTarget, term_id: str) -> bool:

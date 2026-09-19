@@ -151,6 +151,69 @@ async def test_advanced_target_searches_by_code_and_filters_unavailable_classes(
 
 
 @pytest.mark.asyncio
+async def test_advanced_target_displays_the_server_conflict_reason() -> None:
+    class BlockedCatalog(FakeCatalog):
+        async def search(self, target):
+            return [
+                CourseCandidate(
+                    module=target.module,
+                    course_id="course-id",
+                    course_code=target.course_code,
+                    class_id="class-id",
+                    conflict="选课失败：此课堂与已选课程冲突！",
+                )
+            ]
+
+    state = AppState()
+    scheduler = CourseScheduler(
+        state, BlockedCatalog(), FakeEnrollment(), sleep=lambda delay: asyncio.sleep(0)
+    )
+    target = CourseTarget(mode="advanced", module="knjxk", course_code="307015")
+
+    async def stop_after_status(delay):
+        scheduler._stop = True
+        await asyncio.sleep(0)
+
+    scheduler.sleep = stop_after_status
+    task = await scheduler.start(RuntimeConfig(round_id="round-1"), [target])
+    await asyncio.wait_for(task, timeout=1)
+
+    assert state.snapshot.statuses[0].message == "选课失败：此课堂与已选课程冲突！"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("server_message", "expected"),
+    [
+        ("选课失败：此课堂选课人数已满！", "选课失败：此课堂选课人数已满！"),
+        ("", "本轮教学班均未选中，继续重试"),
+    ],
+)
+async def test_advanced_target_preserves_the_enrollment_response_reason(
+    server_message: str, expected: str
+) -> None:
+    class RejectedEnrollment(FakeEnrollment):
+        async def enroll(self, match):
+            return EnrollmentResult(False, server_message)
+
+    state = AppState()
+    scheduler = CourseScheduler(
+        state, FakeCatalog(), RejectedEnrollment(), sleep=lambda delay: asyncio.sleep(0)
+    )
+    target = CourseTarget(mode="advanced", module="xxxk", course_code="302752")
+
+    async def stop_after_status(delay):
+        scheduler._stop = True
+        await asyncio.sleep(0)
+
+    scheduler.sleep = stop_after_status
+    task = await scheduler.start(RuntimeConfig(round_id="round-1"), [target])
+    await asyncio.wait_for(task, timeout=1)
+
+    assert state.snapshot.statuses[0].message == expected
+
+
+@pytest.mark.asyncio
 async def test_unsuccessful_submission_keeps_requesting_until_success() -> None:
     class RetryEnrollment(FakeEnrollment):
         def __init__(self) -> None:
@@ -266,6 +329,30 @@ async def test_scheduler_reenters_when_switching_between_target_modules() -> Non
 
     assert catalog.entries == ["xxxk", "knjxk", "xxxk", "knjxk"]
     assert not any("模块上下文错误" in event.message for event in state.snapshot.events)
+
+
+@pytest.mark.asyncio
+async def test_scheduler_reenters_before_each_target_in_the_same_module() -> None:
+    class EntryCountingCatalog(FakeCatalog):
+        def __init__(self) -> None:
+            self.entries = []
+
+        async def enter_module(self, module: str) -> None:
+            self.entries.append(module)
+
+    catalog = EntryCountingCatalog()
+    scheduler = CourseScheduler(
+        AppState(), catalog, FakeEnrollment(), sleep=lambda delay: asyncio.sleep(0)
+    )
+    targets = [
+        CourseTarget(module="knjxk", course_code="307015", priority=1),
+        CourseTarget(module="knjxk", course_code="302087", priority=2),
+    ]
+
+    task = await scheduler.start(RuntimeConfig(round_id="round-1"), targets)
+    await asyncio.wait_for(task, timeout=1)
+
+    assert catalog.entries == ["knjxk", "knjxk"]
 
 
 @pytest.mark.asyncio
