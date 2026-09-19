@@ -112,17 +112,34 @@ async def test_empty_catalog_query_filters_to_the_students_allowed_scope() -> No
 
 
 @pytest.mark.asyncio
-async def test_course_code_mode_requests_server_side_full_and_conflict_filters() -> None:
+async def test_course_code_mode_keeps_unavailable_rows_for_status_reasons() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["kcxx"] == "G200511771"
-        assert request.url.params["sfym"] == "true"
-        assert request.url.params["sfct"] == "true"
-        return httpx.Response(200, json={"aaData": []})
+        assert request.url.params["sfym"] == "false"
+        assert request.url.params["sfct"] == "false"
+        assert request.url.params["sfxx"] == "false"
+        return httpx.Response(
+            200,
+            json={
+                "aaData": [
+                    {
+                        "kch": "G200511771",
+                        "jx0404id": "class-1",
+                        "jx02id": "course-1",
+                        "syrs": "0",
+                        "ctsm": "选课失败：与已选课程“脚本编程技术”冲突",
+                    }
+                ]
+            },
+        )
 
     client = TeachingClient(transport=httpx.MockTransport(handler), limiter=NoWaitLimiter())
-    target = CourseTarget(mode="advanced", module="xxxk", course_code="G200511771")
+    target = CourseTarget(mode="advanced", module="ggxxkxk", course_code="G200511771")
 
-    assert await CourseCatalog(client).search(target) == []
+    rows = await CourseCatalog(client).search(target)
+
+    assert rows[0].remaining == 0
+    assert rows[0].conflict == "选课失败：与已选课程“脚本编程技术”冲突"
     await client.close()
 
 

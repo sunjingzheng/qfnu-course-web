@@ -105,15 +105,12 @@ class CourseCatalog:
     async def search(self, target: CourseTarget | CourseQuery) -> list[CourseCandidate]:
         spec = MODULES[target.module]
         course_query = target.course_code or target.course_name or target.course_id or ""
-        advanced = isinstance(target, CourseTarget) and target.mode == "advanced"
         params = {
             "kcxx": course_query,
             "skls": target.teacher or "",
-            "sfym": "true" if advanced else "false",
-            "sfct": "true" if advanced else "false",
-            "sfxx": "true"
-            if isinstance(target, CourseQuery) or target.module == "ggxxkxk"
-            else "false",
+            "sfym": "false",
+            "sfct": "false",
+            "sfxx": "true" if isinstance(target, CourseQuery) else "false",
         }
         if target.weekday:
             params["skxq"] = target.weekday
