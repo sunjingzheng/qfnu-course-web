@@ -131,7 +131,10 @@ class CourseScheduler:
                         if self.resolve_round and not round_checked:
                             round_checked = True
                             current = await self.resolve_round()
-                            if current.id != round_id:
+                            if (
+                                current.id != round_id
+                                or current.name != self.state.snapshot.round_name
+                            ):
                                 previous_name = self.state.snapshot.round_name or round_id
                                 await self.catalog.enter_round(current.id)  # type: ignore[attr-defined]
                                 round_id = current.id
@@ -143,12 +146,6 @@ class CourseScheduler:
                                     "info",
                                     "round",
                                     f"轮次已变化：{previous_name} -> {current.name}",
-                                )
-                            elif current.name != self.state.snapshot.round_name:
-                                self.state.snapshot.round_name = current.name
-                                await self.state.publish_snapshot()
-                                await self.state.add_event(
-                                    "info", "round", f"轮次信息已更新：{current.name}"
                                 )
                         if target.module not in entered:
                             await self.catalog.enter_module(target.module)  # type: ignore[attr-defined]
@@ -222,6 +219,7 @@ class CourseScheduler:
                         )
                         skip_round_check_once = True
                     except ModuleUnavailableError as exc:
+                        entered.discard(target.module)
                         await self.state.set_status(
                             target.id,
                             TaskPhase.WAITING,

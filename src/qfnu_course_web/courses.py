@@ -129,6 +129,8 @@ class CourseCatalog:
                 "Referer": f"{self.client.base_url}/jsxsd/xsxkkc/{spec.entry}",
             },
         )
+        if response.status_code == 404:
+            raise ModuleUnavailableError(target.module, spec.label)
         response.raise_for_status()
         try:
             payload = response.json()

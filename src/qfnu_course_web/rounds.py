@@ -33,11 +33,24 @@ def _id_from_tag(tag: object) -> str | None:
     return match.group(1) if match else None
 
 
+def _is_entry_tag(tag: object) -> bool:
+    get = getattr(tag, "get", None)
+    if get is None:
+        return False
+    href = str(get("href") or "")
+    if urlparse(href).path.endswith("/xsxk_index"):
+        return True
+    onclick = str(get("onclick") or "")
+    return re.search(r"(?:jrxk|xsxkOpen)\s*\(", onclick) is not None
+
+
 def parse_rounds(html: str) -> list[RoundOption]:
     soup = BeautifulSoup(html, "html.parser")
     result: list[RoundOption] = []
     seen: set[str] = set()
-    for tag in soup.find_all(True):
+    all_tags = soup.find_all(True)
+    entry_tags = [tag for tag in all_tags if _is_entry_tag(tag)]
+    for tag in entry_tags or all_tags:
         round_id = _id_from_tag(tag)
         if not round_id or round_id in seen:
             continue
@@ -51,10 +64,11 @@ def parse_rounds(html: str) -> list[RoundOption]:
                 name = round_id
         result.append(RoundOption(id=round_id, name=name))
         seen.add(round_id)
-    patterns = (
-        r"jx0502zbid=([^&'\" >]+)",
-        r"(?:jrxk|xsxkOpen)\(\s*['\"]([^'\"]+)",
-    )
+    patterns = [r"(?:jrxk|xsxkOpen)\(\s*['\"]([^'\"]+)"]
+    if entry_tags:
+        patterns.insert(0, r"xsxk_index\?[^'\" >]*jx0502zbid=([^&'\" >]+)")
+    else:
+        patterns.insert(0, r"jx0502zbid=([^&'\" >]+)")
     for pattern in patterns:
         for round_id in re.findall(pattern, html):
             if round_id and round_id not in seen:

@@ -202,6 +202,36 @@ async def test_temporarily_missing_module_keeps_waiting_and_recovers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_404_invalidates_the_entered_module_before_retrying() -> None:
+    class RecoveringCatalog(FakeCatalog):
+        def __init__(self) -> None:
+            self.entry_attempts = 0
+            self.search_attempts = 0
+
+        async def enter_module(self, module: str) -> None:
+            self.entry_attempts += 1
+
+        async def search(self, target):
+            self.search_attempts += 1
+            if self.search_attempts == 1:
+                raise ModuleUnavailableError(target.module, "选修选课")
+            return await super().search(target)
+
+    state = AppState()
+    catalog = RecoveringCatalog()
+    scheduler = CourseScheduler(
+        state, catalog, FakeEnrollment(), sleep=lambda delay: asyncio.sleep(0)
+    )
+    target = CourseTarget(module="xxxk", course_code="302752")
+
+    task = await scheduler.start(RuntimeConfig(round_id="round-1"), [target])
+    await asyncio.wait_for(task, timeout=1)
+
+    assert catalog.entry_attempts == 2
+    assert state.snapshot.scheduler is SchedulerPhase.COMPLETE
+
+
+@pytest.mark.asyncio
 async def test_advanced_course_code_pairs_lecture_and_lab_rows() -> None:
     class CapturingEnrollment(FakeEnrollment):
         def __init__(self):
@@ -349,6 +379,56 @@ async def test_scheduler_switches_to_a_new_current_round_while_running() -> None
     assert catalog.round_entries == ["old", "current"]
     assert state.snapshot.round_id == "current"
     assert state.snapshot.round_name == "当前轮次"
+
+
+@pytest.mark.asyncio
+async def test_scheduler_reenters_round_when_its_name_changes_with_the_same_id() -> None:
+    class ChangingCatalog(FakeCatalog):
+        def __init__(self) -> None:
+            self.searches = 0
+            self.round_entries = []
+            self.module_entries = 0
+
+        async def enter_round(self, round_id):
+            self.round_entries.append(round_id)
+
+        async def enter_module(self, module):
+            self.module_entries += 1
+
+        async def search(self, target):
+            self.searches += 1
+            if self.searches == 1:
+                return []
+            return await super().search(target)
+
+    rounds = iter(
+        [
+            RoundOption(id="shared", name="退课轮次"),
+            RoundOption(id="shared", name="退课轮次"),
+            RoundOption(id="shared", name="选课轮次"),
+        ]
+    )
+
+    async def resolve_round():
+        return next(rounds)
+
+    state = AppState()
+    catalog = ChangingCatalog()
+    scheduler = CourseScheduler(
+        state,
+        catalog,
+        FakeEnrollment(),
+        sleep=lambda delay: asyncio.sleep(0),
+        resolve_round=resolve_round,
+    )
+    target = CourseTarget(module="xxxk", course_code="302752")
+
+    task = await scheduler.start(RuntimeConfig(term_id="term"), [target])
+    await asyncio.wait_for(task, timeout=1)
+
+    assert catalog.round_entries == ["shared", "shared"]
+    assert catalog.module_entries == 2
+    assert state.snapshot.round_name == "选课轮次"
 
 
 @pytest.mark.asyncio

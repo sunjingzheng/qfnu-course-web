@@ -17,6 +17,21 @@ def test_parse_rounds_keeps_visible_names_and_falls_back_to_ids() -> None:
     ]
 
 
+def test_parse_rounds_ignores_closed_detail_rows_when_an_active_entry_exists() -> None:
+    html = """
+    <tr>
+      <td>2026 退课轮次</td>
+      <td><a href='/jsxsd/xsxk/xklc_view?jx0502zbid=withdraw'>查看</a></td>
+    </tr>
+    <tr>
+      <td>2026 选课轮次</td>
+      <td><button id='jrxk' onclick="jrxk('selection')">进入选课</button></td>
+    </tr>
+    """
+
+    assert parse_rounds(html) == [RoundOption(id="selection", name="2026 选课轮次")]
+
+
 def test_select_round_uses_keyword_priority() -> None:
     rounds = [
         RoundOption(id="1", name="2026 春季正选"),

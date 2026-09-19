@@ -85,6 +85,16 @@ async def test_enter_module_classifies_a_missing_round_module() -> None:
     with pytest.raises(ModuleUnavailableError, match="公选课选课"):
         await CourseCatalog(client).enter_module("ggxxkxk")
 
+
+@pytest.mark.asyncio
+async def test_search_classifies_a_missing_round_module() -> None:
+    client = TeachingClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(404)),
+    )
+
+    with pytest.raises(ModuleUnavailableError, match="选修选课"):
+        await CourseCatalog(client).search(CourseTarget(module="xxxk", course_code="302752"))
+
     await client.close()
 
 
