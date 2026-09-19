@@ -268,7 +268,7 @@ URL 查询参数：
 | `skls` | 授课教师（教师姓名） |
 | `sfym` | 是否过滤已满。样本均为 `false` |
 | `sfct` | 是否过滤冲突。样本均为 `false` |
-| `sfxx` | 是否过滤限选。跨年级样本 `false`；**公选课官方页为 `true`** |
+| `sfxx` | 是否过滤限选。监控目标和课程目录使用 `true`，防止向不符合限选条件的教学班提交选课 |
 | `skxq` | 星期几（仅配置了星期几时携带） |
 | `skjc` | 节次编码（仅配置了节次范围时携带，编码规则见 3.3） |
 
@@ -684,7 +684,7 @@ GET /jsxsd/xsxkjg/xsxkkb
 | `xsxkFawxk` | 同上，末尾多 `&skxq_xx0103=&kzyxkbx=0&kzyxkxx=0&kzyxkrx=0&kzyxkqt=0` |
 | `xsxkGgxxkxk` | `kcxx=&skls=&skxq=&skjc=&sfym=&sfct=&szjylb=&sfxx=true`（有 `szjylb`，无 `skxq_xx0103`；`sfym`/`sfct` 为空而非 `false`） |
 
-- 三个过滤开关是页面复选框：`sfym`=过滤已满、`sfct`=过滤冲突、`sfxx`=过滤限选。只有 `sfxx` 默认勾选，所以官方页发 `sfxx=true`；`sfym`/`sfct` 默认不勾。程序要全量候选时三项发 `false` 即可（见 3.2）。
+- 三个过滤开关是页面复选框：`sfym`=过滤已满、`sfct`=过滤冲突、`sfxx`=过滤限选。程序使用 `sfym=false&sfct=false` 保留已满和冲突行用于展示具体原因，并使用 `sfxx=true` 排除不符合限选条件的教学班。
 - `kcxx` 为空时行为按模块不同：必修、选修、公选课空 `kcxx` 仍有结果（6/4/42 条）；本学期计划、专业内跨年级、计划外空 `kcxx` 返回 0 条，必须带 `kcxx`。
 - `skxq_xx0103=`、`kzyxk*`、`szjylb` 都可省略（跨年级/公选 HAR 已验证只发通用参数也能搜）。
 

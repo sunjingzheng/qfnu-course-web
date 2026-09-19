@@ -110,7 +110,7 @@ class CourseCatalog:
             "skls": target.teacher or "",
             "sfym": "false",
             "sfct": "false",
-            "sfxx": "true" if isinstance(target, CourseQuery) else "false",
+            "sfxx": "true",
         }
         if target.weekday:
             params["skxq"] = target.weekday
@@ -127,7 +127,7 @@ class CourseCatalog:
             },
         )
         if response.status_code == 404:
-            raise ModuleUnavailableError(target.module, spec.label)
+            return []
         response.raise_for_status()
         try:
             payload = response.json()

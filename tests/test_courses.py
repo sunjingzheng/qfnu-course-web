@@ -29,7 +29,7 @@ async def test_search_parses_candidate_and_sends_large_page() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/xsxkKnjxk")
         assert request.url.params["kcxx"] == "301043"
-        assert request.url.params["sfxx"] == "false"
+        assert request.url.params["sfxx"] == "true"
         assert dict(httpx.QueryParams(request.content.decode()))["iDisplayLength"] == "10000"
         return httpx.Response(
             200,
@@ -87,14 +87,14 @@ async def test_enter_module_classifies_a_missing_round_module() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_classifies_a_missing_round_module() -> None:
+async def test_search_treats_a_404_as_no_matching_courses() -> None:
     client = TeachingClient(
         transport=httpx.MockTransport(lambda request: httpx.Response(404)),
     )
 
-    with pytest.raises(ModuleUnavailableError, match="选修选课"):
-        await CourseCatalog(client).search(CourseTarget(module="xxxk", course_code="302752"))
+    rows = await CourseCatalog(client).search(CourseTarget(module="xxxk", course_code="302752"))
 
+    assert rows == []
     await client.close()
 
 
@@ -112,12 +112,12 @@ async def test_empty_catalog_query_filters_to_the_students_allowed_scope() -> No
 
 
 @pytest.mark.asyncio
-async def test_course_code_mode_keeps_unavailable_rows_for_status_reasons() -> None:
+async def test_course_code_mode_keeps_conflicts_but_filters_restricted_rows() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["kcxx"] == "G200511771"
         assert request.url.params["sfym"] == "false"
         assert request.url.params["sfct"] == "false"
-        assert request.url.params["sfxx"] == "false"
+        assert request.url.params["sfxx"] == "true"
         return httpx.Response(
             200,
             json={
