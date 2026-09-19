@@ -117,7 +117,7 @@ class CourseScheduler:
                 round_id = getattr(rounds[0], "id", rounds[0])
             await self.catalog.enter_round(round_id)  # type: ignore[attr-defined]
             self.state.snapshot.round_id = round_id
-            entered: set[str] = set()
+            active_module: str | None = None
             skip_round_check_once = recovered_initial_round
             while pending and not self._stop:
                 await self._pause.wait()
@@ -138,7 +138,7 @@ class CourseScheduler:
                                 previous_name = self.state.snapshot.round_name or round_id
                                 await self.catalog.enter_round(current.id)  # type: ignore[attr-defined]
                                 round_id = current.id
-                                entered.clear()
+                                active_module = None
                                 self.state.snapshot.round_id = current.id
                                 self.state.snapshot.round_name = current.name
                                 await self.state.publish_snapshot()
@@ -147,9 +147,9 @@ class CourseScheduler:
                                     "round",
                                     f"轮次已变化：{previous_name} -> {current.name}",
                                 )
-                        if target.module not in entered:
+                        if target.module != active_module:
                             await self.catalog.enter_module(target.module)  # type: ignore[attr-defined]
-                            entered.add(target.module)
+                            active_module = target.module
                         await self.state.set_status(target.id, TaskPhase.SEARCHING, "正在搜索")
                         candidates = await self.catalog.search(target)  # type: ignore[attr-defined]
                         await self.state.set_candidates(candidates)
@@ -191,7 +191,7 @@ class CourseScheduler:
                         reauth_attempts = 0
                     except RoundSelectionError:
                         round_id = None
-                        entered.clear()
+                        active_module = None
                         self.state.snapshot.round_id = None
                         self.state.snapshot.round_name = None
                         for pending_target in targets:
@@ -219,7 +219,7 @@ class CourseScheduler:
                         )
                         skip_round_check_once = True
                     except ModuleUnavailableError as exc:
-                        entered.discard(target.module)
+                        active_module = None
                         await self.state.set_status(
                             target.id,
                             TaskPhase.WAITING,
@@ -252,7 +252,7 @@ class CourseScheduler:
                                 )
                         if recovered:
                             await self.catalog.enter_round(round_id)  # type: ignore[attr-defined]
-                            entered.clear()
+                            active_module = None
                             await self.state.add_event("success", "session", "会话已恢复，继续抢课")
                             continue
                         self._stop = True

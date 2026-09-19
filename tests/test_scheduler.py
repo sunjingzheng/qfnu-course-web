@@ -232,6 +232,43 @@ async def test_search_404_invalidates_the_entered_module_before_retrying() -> No
 
 
 @pytest.mark.asyncio
+async def test_scheduler_reenters_when_switching_between_target_modules() -> None:
+    class ContextSensitiveCatalog(FakeCatalog):
+        def __init__(self) -> None:
+            self.active_module = None
+            self.entries = []
+            self.searches = {"xxxk": 0, "knjxk": 0}
+
+        async def enter_module(self, module: str) -> None:
+            self.active_module = module
+            self.entries.append(module)
+
+        async def search(self, target):
+            if self.active_module != target.module:
+                raise ModuleUnavailableError(target.module, "模块上下文错误")
+            self.searches[target.module] += 1
+            if self.searches[target.module] == 1:
+                return []
+            return await super().search(target)
+
+    state = AppState()
+    catalog = ContextSensitiveCatalog()
+    scheduler = CourseScheduler(
+        state, catalog, FakeEnrollment(), sleep=lambda delay: asyncio.sleep(0)
+    )
+    targets = [
+        CourseTarget(module="xxxk", course_code="302087", priority=1),
+        CourseTarget(module="knjxk", course_code="307015", priority=2),
+    ]
+
+    task = await scheduler.start(RuntimeConfig(round_id="round-1"), targets)
+    await asyncio.wait_for(task, timeout=1)
+
+    assert catalog.entries == ["xxxk", "knjxk", "xxxk", "knjxk"]
+    assert not any("模块上下文错误" in event.message for event in state.snapshot.events)
+
+
+@pytest.mark.asyncio
 async def test_advanced_course_code_pairs_lecture_and_lab_rows() -> None:
     class CapturingEnrollment(FakeEnrollment):
         def __init__(self):
