@@ -96,7 +96,12 @@ async def test_scheduler_runs_without_term_id_and_does_not_skip_exclusive_group(
 
     assert enrollment.enroll_calls == 2
     assert all(status.phase is TaskPhase.SUCCESS for status in state.snapshot.statuses)
-    assert all("未二次确认" in status.message for status in state.snapshot.statuses)
+    assert all(status.message == "选课成功" for status in state.snapshot.statuses)
+    assert [
+        (event.level.value, event.message)
+        for event in state.snapshot.events
+        if event.category == "enrollment"
+    ] == [("success", "001 选课成功"), ("success", "002 选课成功")]
 
 
 @pytest.mark.asyncio

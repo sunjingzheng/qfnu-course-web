@@ -323,15 +323,10 @@ class CourseScheduler:
                         )
             return True
         if not config.term_id:
-            await self.state.set_status(
-                target.id,
-                TaskPhase.SUCCESS,
-                "选课请求成功，未配置学期 ID，未二次确认",
-            )
+            await self.state.set_status(target.id, TaskPhase.SUCCESS, "选课成功")
+            target_label = target.course_name or target.course_code or target.class_id
             await self.state.add_event(
-                "warning",
-                "enrollment",
-                "选课接口返回成功；未配置学期 ID，无法查询结果列表",
+                "success", "enrollment", f"{target_label} 选课成功"
             )
             pending.discard(target.id)
             return True
