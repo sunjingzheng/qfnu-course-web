@@ -82,10 +82,10 @@ Run: `git diff --check && git diff -- src/qfnu_course_web tests docs/superpowers
 
 Expected: focused changes with no whitespace errors or unrelated files.
 
-- [ ] **Step 3: Commit and push**
+- [x] **Step 3: Commit and push**
 
 Commit the implementation and tests on `main`, then push `main` to `origin`.
 
-- [ ] **Step 4: Synchronize local runtime copies**
+- [x] **Step 4: Synchronize local runtime copies**
 
 Fast-forward `/Users/mac/Documents/test1/qfnu-course-web/qfnu-course-web` and `/Users/mac/Documents/test2` to the pushed commit, then run their targeted recovery tests.
