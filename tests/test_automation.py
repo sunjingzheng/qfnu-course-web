@@ -5,6 +5,7 @@ import pytest
 
 from qfnu_course_web.auth import AuthResult, ManualCaptchaRequired
 from qfnu_course_web.automation import AutomationController, AutomationError
+from qfnu_course_web.client import SessionExpiredError
 from qfnu_course_web.config import AppConfig
 from qfnu_course_web.models import AutomationPhase, SchedulerPhase
 from qfnu_course_web.rounds import RoundOption
@@ -178,6 +179,45 @@ async def test_automation_waits_until_a_round_appears() -> None:
     assert scheduler.starts[0][0].round_id == "current"
     assert any("暂无可用选课轮次" in event.message for event in state.snapshot.events)
     assert any("检测到可用轮次" in event.message for event in state.snapshot.events)
+
+
+@pytest.mark.asyncio
+async def test_automation_reauthenticates_while_waiting_for_a_round() -> None:
+    class RecoveringRoundCatalog:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def list_rounds(self):
+            self.calls += 1
+            if self.calls == 1:
+                return []
+            if self.calls == 2:
+                raise SessionExpiredError("登录会话已失效")
+            return [RoundOption(id="current", name="当前轮次")]
+
+    state = AppState()
+    auth = FakeAuth()
+    scheduler = FakeScheduler()
+    controller = AutomationController(
+        state,
+        auth,
+        FakeKeychain(),
+        RecoveringRoundCatalog(),
+        scheduler,
+        sleep=lambda delay: asyncio.sleep(0),
+    )
+    config = config_at(None)
+    config = config.model_copy(
+        update={"selection": config.selection.model_copy(update={"round_keywords": []})}
+    )
+
+    task = await controller.start(config)
+    await asyncio.wait_for(task, timeout=1)
+
+    assert auth.automatic_calls == 2
+    assert scheduler.starts[0][0].round_id == "current"
+    assert state.snapshot.round_id == "current"
+    assert any("会话已恢复" in event.message for event in state.snapshot.events)
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 
 from .auth import AuthService, ManualCaptchaRequired
+from .client import SessionExpiredError
 from .config import AppConfig
 from .keychain import KeychainStore
 from .models import AutomationPhase, RuntimeConfig, SchedulerPhase
@@ -191,6 +192,14 @@ class AutomationController:
                     await self.state.add_event("warning", "round", "暂无可用选课轮次，正在持续监听")
                     await self.state.publish_snapshot()
                 await self.sleep(1)
+            except SessionExpiredError as exc:
+                await self.state.add_event("warning", "session", str(exc))
+                recovered = await self._recover_session(config)
+                if not recovered:
+                    raise
+                self.state.snapshot.automation = AutomationPhase.SELECTING_ROUND
+                await self.state.add_event("success", "session", "会话已恢复，继续监听轮次")
+                await self.state.publish_snapshot()
 
     async def _wait_until(
         self,

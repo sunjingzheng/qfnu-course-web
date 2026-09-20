@@ -602,6 +602,59 @@ async def test_scheduler_stops_stale_requests_while_rounds_are_temporarily_empty
 
 
 @pytest.mark.asyncio
+async def test_scheduler_reauthenticates_while_waiting_for_a_round() -> None:
+    class RecoveringCatalog(FakeCatalog):
+        def __init__(self) -> None:
+            self.round_entries = []
+
+        async def enter_round(self, round_id):
+            self.round_entries.append(round_id)
+
+    results = iter(
+        [
+            RoundOption(id="old", name="旧轮次"),
+            RoundSelectionError("没有可用选课轮次"),
+            SessionExpiredError("登录会话已失效"),
+            RoundOption(id="current", name="当前轮次"),
+        ]
+    )
+
+    async def resolve_round():
+        result = next(results)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    recoveries = 0
+
+    async def reauthenticate() -> bool:
+        nonlocal recoveries
+        recoveries += 1
+        return True
+
+    state = AppState()
+    catalog = RecoveringCatalog()
+    scheduler = CourseScheduler(
+        state,
+        catalog,
+        FakeEnrollment(),
+        sleep=lambda delay: asyncio.sleep(0),
+        reauthenticate=reauthenticate,
+        resolve_round=resolve_round,
+    )
+    target = CourseTarget(module="xxxk", course_code="001")
+
+    task = await scheduler.start(RuntimeConfig(term_id="term"), [target])
+    await asyncio.wait_for(task, timeout=1)
+
+    assert recoveries == 1
+    assert catalog.round_entries == ["old", "current"]
+    assert state.snapshot.round_id == "current"
+    assert state.snapshot.scheduler is SchedulerPhase.COMPLETE
+    assert any("会话已恢复" in event.message for event in state.snapshot.events)
+
+
+@pytest.mark.asyncio
 async def test_scheduler_waits_if_round_disappears_during_startup() -> None:
     results = iter(
         [

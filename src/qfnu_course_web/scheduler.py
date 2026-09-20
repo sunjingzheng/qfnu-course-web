@@ -265,12 +265,28 @@ class CourseScheduler:
     async def _wait_for_available_round(self) -> RoundOption | None:
         if self.resolve_round is None:
             return None
+        reauth_attempts = 0
         while not self._stop:
             await self._pause.wait()
             try:
                 return await self.resolve_round()
             except RoundSelectionError:
+                reauth_attempts = 0
                 await self.sleep(1)
+            except SessionExpiredError as exc:
+                reauth_attempts += 1
+                await self.state.add_event("warning", "session", str(exc))
+                recovered = False
+                if self.reauthenticate and reauth_attempts <= 3:
+                    try:
+                        recovered = await self.reauthenticate()
+                    except Exception as recovery_error:
+                        await self.state.add_event(
+                            "error", "session", f"重新登录失败：{recovery_error}"
+                        )
+                if not recovered:
+                    raise
+                await self.state.add_event("success", "session", "会话已恢复，继续监听轮次")
         return None
 
     async def _submit_match(
